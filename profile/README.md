@@ -1,12 +1,12 @@
 
 
-🙋‍♀️ 该社区提供一款能快速测试 [具身人](https://openhutb.github.io/doc/pedestrian/) 、[无人车](https://openhutb.github.io/doc/vehicle/) 、[无人机](https://openhutb.github.io/air_doc/) 感知、规划、控制算法的影视级物理模拟器。
+🙋‍♀️ 该社区提供一款加速[具身人](https://openhutb.github.io/doc/pedestrian/)、[无人车](https://openhutb.github.io/doc/vehicle/)、[无人机](https://openhutb.github.io/air_doc/)开发和测试的开源[影视级物理模拟器](https://github.com/OpenHUTB/hutb)（[下载链接](https://mp.weixin.qq.com/s/3Tzo0AZEMB2PFYAu_s8gOA)）。
 
 <p width="100%" display="flex" align="center">
 <a href="https://openhutb.github.io/doc/tuto_G_pedestrian_navigation/#conclusion"><img src="https://github.com/OpenHUTB/doc/blob/master/docs/img/pedestrian/cycle.gif?raw=true" width="30%" margin-right="10%"/></a>  <a href="https://openhutb.github.io/doc/tuto_G_chrono/"><img src="https://github.com/OpenHUTB/doc/blob/master/docs/img/chrono/vechile_turnover.gif?raw=true" width="33%"/></a> <a href="https://openhutb.github.io/air_doc/"><img src="https://github.com/OpenHUTB/air_doc/blob/master/docs/images/dev/HUTB_simulation.gif?raw=true" width="33%"/></a>
 </p>
 
-🍿 实用资源 - 从 [社区文档](https://openhutb.github.io/doc/) 中可以找到您所需要的所有详细信息，项目之间的关系如下图所示
+🍿 实用资源 - 从[社区文档](https://openhutb.github.io/doc/)中可以找到您所需要的所有详细信息，项目之间的关系如下图所示
 
 ```mermaid
 graph LR
@@ -16,9 +16,9 @@ graph LR
     F --> C
     C --> D[文档 <a href='https://github.com/OpenHUTB/doc'>doc</a>]
     D --> H[无人机文档 <a href='https://github.com/OpenHUTB/air_doc'>air_doc</a>]
-    D --> I[神经原理 <a href='https://github.com/OpenHUTB/neuro'>neuro</a>]
+    D --> I[神经网络 <a href='https://github.com/OpenHUTB/neuro'>neuro</a>]
     I --> J[规划 <a href='https://github.com/OpenHUTB/PFC'>PFC</a>]
-    I --> K[控制原理 <a href='https://github.com/OpenHUTB/move'>move</a>]
+    I --> K[控制 <a href='https://github.com/OpenHUTB/move'>move</a>]
     K --> A
     L[模拟引擎 <a href='https://github.com/OpenHUTB/engine'>engine</a>] --> C
     L --> M[引擎文档 <a href='https://github.com/OpenHUTB/engine_doc'>engine_doc</a>]
