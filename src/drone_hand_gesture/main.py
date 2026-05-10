@@ -345,10 +345,12 @@ class IntegratedDroneSimulation:
                 self._show_help()
             elif key == ord('f'):  # 切换全屏
                 self._toggle_fullscreen()
-            elif key == ord('i'):  # 切换镜像模式
-                self.mirror_mode = not self.mirror_mode
-                mode_text = "开启" if self.mirror_mode else "关闭"
-                print(f"[INFO] 摄像头镜像模式: {mode_text}")
+            elif key == ord('['):  # 降低灵敏度
+                self._adjust_sensitivity(-1)
+            elif key == ord(']'):  # 提高灵敏度
+                self._adjust_sensitivity(1)
+            elif key == ord('='):  # 重置灵敏度为默认值
+                self._reset_sensitivity()
 
         print("手势识别线程结束")
 
