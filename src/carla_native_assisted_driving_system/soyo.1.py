@@ -407,6 +407,17 @@ class HUD(object):
         # 预警大字体
         self.ldw_font = pygame.font.Font(mono, 48)
 
+    # 【新增FCW】前向碰撞预警状态
+        self.fcw_warning = False
+        self.fcw_warning_duration = 0.8
+        self.fcw_timer = 0.0
+        self.fcw_font = pygame.font.Font(mono, 52)
+        # ===================== 【新增：BSD盲区监测】 =====================
+        self.bsd_warning = False
+        self.bsd_side = ""  # 记录左侧/右侧
+        self.bsd_warning_duration = 0.8
+        self.bsd_timer = 0.0
+        self.bsd_font = pygame.font.Font(mono, 46)
     def on_world_tick(self, timestamp):
         self._server_clock.tick()
         self.server_fps = self._server_clock.get_fps()
@@ -424,6 +435,16 @@ class HUD(object):
             self.ldw_timer -= delta_seconds
             if self.ldw_timer <= 0:
                 self.ldw_warning = False
+        # 【新增FCW】更新碰撞预警计时器
+        if self.fcw_warning:
+            self.fcw_timer -= delta_seconds
+            if self.fcw_timer <= 0:
+                self.fcw_warning = False
+            # ===================== 【新增：BSD计时器】 =====================
+        if self.bsd_warning:
+            self.bsd_timer -= delta_seconds
+            if self.bsd_timer <= 0:
+                self.bsd_warning = False
 
         transform = world.player.get_transform()
         vel = world.player.get_velocity()
@@ -487,6 +508,11 @@ class HUD(object):
         self.ldw_warning = True
         self.ldw_timer = self.ldw_warning_duration
 
+    # 【新增FCW】触发前向碰撞警告
+    def trigger_fcw_warning(self):
+        self.fcw_warning = True
+        self.fcw_timer = self.fcw_warning_duration
+
     def render(self, display):
         if self._show_info:
             info_surface = pygame.Surface((220, self.dim[1]))
@@ -530,8 +556,17 @@ class HUD(object):
             warning_text = self.ldw_font.render("车道偏离警告！", True, (255, 0, 0))
             text_rect = warning_text.get_rect(center=(self.dim[0] // 2, self.dim[1] // 2))
             display.blit(warning_text, text_rect)
+        # 【新增FCW】绘制前向碰撞警告
+        if self.fcw_warning:
+            warning_text = self.fcw_font.render("碰撞危险！", True, (255, 0, 0))
+            text_rect = warning_text.get_rect(center=(self.dim[0] // 2, self.dim[1] // 2 + 80))
+            display.blit(warning_text, text_rect)
 
-
+            # ===================== 【新增：绘制BSD盲区警告】 =====================
+        if self.bsd_warning:
+            warning_text = self.bsd_font.render(f"{self.bsd_side}盲区有车！", True, (0, 255, 255))
+            text_rect = warning_text.get_rect(center=(self.dim[0] // 2, self.dim[1] // 2 - 80))
+            display.blit(warning_text, text_rect)
 # ==============================================================================
 # -- 传感器基础类 --------------------------------------------------------------
 # ==============================================================================
@@ -810,6 +845,32 @@ def game_loop(args):
 
     ldw_warning_sound = generate_ldw_beep()
 
+    # 【新增FCW】生成碰撞预警提示音
+    def generate_fcw_beep():
+        sample_rate = 22050
+        duration = 0.2
+        freq = 1200
+        t = np.linspace(0, duration, int(sample_rate * duration), False)
+        wave = np.sin(2 * np.pi * freq * t)
+        wave = (wave * 32767).astype(np.int16)
+        stereo_wave = np.column_stack((wave, wave))
+        return pygame.sndarray.make_sound(stereo_wave)
+
+    fcw_warning_sound = generate_fcw_beep()
+
+    # ===================== 【新增：BSD盲区提示音】 =====================
+    def generate_bsd_beep():
+        sample_rate = 22050
+        duration = 0.18
+        freq = 800
+        t = np.linspace(0, duration, int(sample_rate * duration), False)
+        wave = np.sin(2 * np.pi * freq * t)
+        wave = (wave * 32767).astype(np.int16)
+        stereo_wave = np.column_stack((wave, wave))
+        return pygame.sndarray.make_sound(stereo_wave)
+
+    bsd_warning_sound = generate_bsd_beep()
+
     try:
         client = carla.Client(args.host, args.port)
         client.set_timeout(10.0)
@@ -821,6 +882,9 @@ def game_loop(args):
         hud = HUD(args.width, args.height)
         # 【新增】将提示音绑定到HUD
         hud.ldw_sound = ldw_warning_sound
+        hud.fcw_sound = fcw_warning_sound
+        # ===================== 【新增】 =====================
+        hud.bsd_sound = bsd_warning_sound
         world = World(client.get_world(), hud, args)
         clock = pygame.time.Clock()
 
@@ -891,6 +955,37 @@ def game_loop(args):
             elif min_dist < safe_dist:
                 brake = 0.2
                 throttle *= 0.5
+                # 【新增FCW】前向碰撞预警逻辑
+                if min_dist < 12:  # 危险距离触发警告
+                    hud.trigger_fcw_warning()
+                    try:
+                        hud.fcw_sound.play()
+                    except:
+                        pass
+                # ===================== 【新增：BSD盲区监测核心代码】 =====================
+                bsd_left = False
+                bsd_right = False
+                blind_radius = 8.0  # 盲区范围
+                for vehicle in world.world.get_actors().filter('vehicle.*'):
+                    if vehicle.id == ego.id:
+                        continue
+                    diff = vehicle.get_transform().location - vehicle_loc
+                    dist = math.hypot(diff.x, diff.y)
+                    if 2 < dist < blind_radius:
+                        cross = diff.x * vehicle_forward.y - diff.y * vehicle_forward.x
+                        if cross < -1.5:
+                            bsd_right = True
+                        elif cross > 1.5:
+                            bsd_left = True
+
+                if bsd_left or bsd_right:
+                    hud.bsd_warning = True
+                    hud.bsd_timer = hud.bsd_warning_duration
+                    hud.bsd_side = "左侧" if bsd_left else "右侧"
+                    try:
+                        hud.bsd_sound.play()
+                    except:
+                        pass
             # ===================== 天气自适应控制（全自动） =====================
             weather_type = get_weather_type(world.world)
             auto_vehicle_lights(ego, weather_type)
