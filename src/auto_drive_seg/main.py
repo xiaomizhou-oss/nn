@@ -2,15 +2,18 @@
 自动驾驶车辆语义分割 —— 推理入口
 
 加载预训练 U-Net 模型，对 CARLA 街景做 8 类语义分割。
-支持两种输入，按扩展名自动识别：
+支持三种模式，按扩展名/参数自动识别：
   - 图片 (.png/.jpg/...)：输出叠加图 (overlay) 和纯掩码图 (mask)
   - 视频 (.mp4/.avi/...)：逐帧分割，输出叠加视频，并生成采样帧拼图
+  - --compare 图片：同一张图分别在多个预训练模型上推理，输出并排对比图
 
 用法：
     python main.py                                   # 用默认示例图 + 默认模型
     python main.py <输入>                             # 指定输入（图片或视频）
     python main.py <输入> <模型目录>                  # 指定输入和模型
     python main.py <输入> <模型目录> <最大帧数>       # 视频限制处理帧数
+    python main.py --compare                         # 默认示例图，对比 models/ 下所有模型
+    python main.py --compare <输入图>                 # 指定输入图做对比
 
 模型说明：
     预训练模型为二进制大文件（每个约 17MB），未随仓库提交。
@@ -27,7 +30,7 @@ if MODULE_DIR not in sys.path:
 
 import cv2
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 from semantic.unet.utils import infer, labels_to_image, overlay_labels_on_input
 
@@ -35,6 +38,13 @@ DEFAULT_INPUT = os.path.join(MODULE_DIR, "examples", "sample_input.png")
 DEFAULT_MODEL = os.path.join(MODULE_DIR, "models", "unet_model_256x256_50")
 VIDEO_EXTS = (".mp4", ".avi", ".mov", ".mkv", ".webm")
 DEFAULT_MAX_FRAMES = 150
+# --compare 模式默认尝试加载这些模型（按这个顺序，缺失会跳过）
+COMPARE_MODEL_NAMES = (
+    "unet_model_256x256_50",
+    "unet_model_512x512_50",
+    "unet_model_512x512_focal_loss_with_weights",
+    "unet_512x512_focal_loss_no_weights",
+)
 
 
 def load_segmentation_model(model_dir):
@@ -141,10 +151,74 @@ def run_video(model, video_path, max_frames):
         print(f"      已写出采样帧拼图: {montage_path}")
 
 
+def label_panel(panel, text):
+    """在图片左上角绘制半透明黑底白字标签，标记模型名。"""
+    out = panel.copy()
+    draw = ImageDraw.Draw(out, "RGBA")
+    try:
+        font = ImageFont.truetype("arial.ttf", max(14, panel.size[0] // 30))
+    except OSError:
+        font = ImageFont.load_default()
+    bbox = draw.textbbox((0, 0), text, font=font)
+    pad = 6
+    box = (0, 0, bbox[2] - bbox[0] + 2 * pad, bbox[3] - bbox[1] + 2 * pad)
+    draw.rectangle(box, fill=(0, 0, 0, 180))
+    draw.text((pad, pad), text, fill=(255, 255, 255, 255), font=font)
+    return out
+
+
+def run_compare(input_path):
+    """对同一张图片用多个预训练模型分别推理，输出并排对比图。"""
+    img = Image.open(input_path).convert("RGB")
+    print(f"      输入图片: {input_path}  尺寸: {img.size}")
+
+    models_dir = os.path.join(MODULE_DIR, "models")
+    available = [
+        n for n in COMPARE_MODEL_NAMES if os.path.isdir(os.path.join(models_dir, n))
+    ]
+    if not available:
+        print(
+            f"[错误] 在 {models_dir} 下未找到任何预训练模型。\n"
+            f"请按 README 从原始项目获取以下任一/多个模型：\n  "
+            + "\n  ".join(COMPARE_MODEL_NAMES),
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    print(f"      将对比 {len(available)} 个模型: {available}")
+
+    from keras.models import load_model
+
+    panels = []
+    for i, name in enumerate(available, 1):
+        model_dir = os.path.join(models_dir, name)
+        print(f"[{i}/{len(available)}] 加载并推理: {name}")
+        model = load_model(model_dir, compile=False)
+        overlay, _ = segment_image(model, img)
+        panels.append(label_panel(overlay, name))
+
+    cols = 2 if len(panels) >= 2 else 1
+    grid = make_montage(panels, cols=cols)
+    base, _ = os.path.splitext(input_path)
+    out_path = f"{base}_compare.png"
+    grid.save(out_path)
+    print(f"      已写出多模型对比图: {out_path}")
+
+
 def main():
-    input_path = sys.argv[1] if len(sys.argv) >= 2 else DEFAULT_INPUT
-    model_dir = sys.argv[2] if len(sys.argv) >= 3 else DEFAULT_MODEL
-    max_frames = int(sys.argv[3]) if len(sys.argv) >= 4 else DEFAULT_MAX_FRAMES
+    args = sys.argv[1:]
+    if args and args[0] == "--compare":
+        rest = args[1:]
+        input_path = rest[0] if rest else DEFAULT_INPUT
+        if not os.path.isfile(input_path):
+            print(f"[错误] 找不到输入文件: {input_path}", file=sys.stderr)
+            sys.exit(1)
+        run_compare(input_path)
+        print("完成。")
+        return
+
+    input_path = args[0] if len(args) >= 1 else DEFAULT_INPUT
+    model_dir = args[1] if len(args) >= 2 else DEFAULT_MODEL
+    max_frames = int(args[2]) if len(args) >= 3 else DEFAULT_MAX_FRAMES
 
     if not os.path.isfile(input_path):
         print(f"[错误] 找不到输入文件: {input_path}", file=sys.stderr)

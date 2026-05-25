@@ -25,6 +25,12 @@
 <img width="600px" src="examples/result_video_frames.png"/>
 </p>
 
+`--compare` 模式可将同一张输入图分别在多个预训练模型上推理并排显示，便于对比不同输入尺寸/损失函数下的分割差异：
+
+<p align="center">
+<img width="700px" src="examples/result_compare.png"/>
+</p>
+
 ## 运行环境
 
 - 平台：Windows 10/11（Linux 同理）
@@ -92,6 +98,20 @@ python main.py path/to/video.mp4 models/unet_model_256x256_50 120
 ```
 
 视频为二进制大文件，不随仓库提交。可用原始项目 `examples/` 目录下的 `.mp4`（如 `movie1.mp4`）作测试。运行后在视频同目录生成 `*_seg.mp4`（逐帧分割叠加视频）和 `*_seg_frames.png`（采样帧拼图）。
+
+### 多模型对比（--compare）
+
+把 `models/` 下能找到的预训练模型（默认尝试这 4 个：`unet_model_256x256_50`、`unet_model_512x512_50`、`unet_model_512x512_focal_loss_with_weights`、`unet_512x512_focal_loss_no_weights`）依次在同一张图上推理，生成并排对比图：
+
+```bash
+# 默认示例图
+python main.py --compare
+
+# 指定输入图
+python main.py --compare examples/sample_input.png
+```
+
+运行后在输入图同目录生成 `*_compare.png`。`models/` 下缺失的模型会自动跳过；至少要有 1 个模型才能跑。
 
 ## 目录说明
 
